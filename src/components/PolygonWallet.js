@@ -1,6 +1,8 @@
-const { ethers } = require('ethers');
-const axios = require('axios');
+import { ethers } from 'ethers';
+import axios from 'axios';
 import { makeAutoObservable } from 'mobx';
+import walletStore from './WalletStore';
+import { utils } from 'ethers';
 
 class PolygonWallet {
   constructor(privateKey) {

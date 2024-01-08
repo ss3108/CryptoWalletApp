@@ -1,8 +1,9 @@
 import bitcoin from 'bitcoinjs-lib';
 import axios from 'axios';
 import { makeAutoObservable } from 'mobx';
-import { JsonRpcProvider } from 'ethers';
 import { ECPair, payments, Transaction } from 'bitcoinjs-lib';
+import walletStore from './WalletStore';
+import { utils } from 'ethers';
 
 const tx = new Transaction();
 const API_BASE_URL = 'https://api.blockchair.com/bitcoin';
