@@ -4,5 +4,4 @@ const polygonNetwork = 'https://rpc-mainnet.maticvigil.com'; // Replace with the
 
 module.exports = {
   provider: new ethers.providers.JsonRpcProvider(polygonNetwork),
-  // Add other Polygon-specific configurations as needed
 };

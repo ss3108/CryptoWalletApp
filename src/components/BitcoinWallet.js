@@ -1,20 +1,27 @@
-const bitcoin = require('bitcoinjs-lib');
-const axios = require('axios');
+import bitcoin from 'bitcoinjs-lib';
+import axios from 'axios';
 import { makeAutoObservable } from 'mobx';
+import bitcoinStore from './BitcoinStore';
+
+const API_BASE_URL = 'https://api.blockchair.com/bitcoin';
+const PUSH_TX_URL = `${API_BASE_URL}/push/transaction`;
 
 class BitcoinWallet {
+  privateKey;
+  keyPair;
+  address;
+  balance = 0;
+
   constructor(privateKey) {
     this.privateKey = privateKey;
     this.keyPair = bitcoin.ECPair.fromPrivateKey(Buffer.from(privateKey, 'hex'));
     this.address = bitcoin.payments.p2pkh({ pubkey: this.keyPair.publicKey }).address;
-    this.balance = 0; // Set initial balance to zero
-    makeAutoObservable(this, { balance: true });
+    makeAutoObservable(this);
   }
-  
 
   async getBalance() {
     try {
-      const response = await axios.get(`https://api.blockchair.com/bitcoin/dashboards/address/${this.address}`);
+      const response = await axios.get(`${API_BASE_URL}/dashboards/address/${this.address}`);
       this.balance = response.data.data[0].address.balance;
       return this.balance;
     } catch (error) {
@@ -26,11 +33,7 @@ class BitcoinWallet {
   async sendTransaction(receiverAddress, amount) {
     try {
       const tx = new bitcoin.TransactionBuilder();
-
-      // Fetch unspent outputs
       const unspentOutputs = await axios.get(`https://api.blockchair.com/bitcoin/dashboards/address/${this.address}`);
-
-      // Iterate through unspent outputs to add inputs
       unspentOutputs.data.data[0].address.transactions.forEach((transaction) => {
         transaction.outputs.forEach((output) => {
           if (output.recipient === this.address) {
@@ -39,10 +42,7 @@ class BitcoinWallet {
         });
       });
 
-      // Set the output for the recipient
       tx.addOutput(receiverAddress, amount * 1e8); // Convert amount to satoshis
-
-      // Calculate the change (if any) and set the change address
       const totalInput = unspentOutputs.data.data[0].address.balance;
       const changeAmount = totalInput - amount * 1e8;
       if (changeAmount > 0) {
@@ -59,10 +59,10 @@ class BitcoinWallet {
       const txHex = tx.build().toHex();
 
       // Broadcast the transaction
-      const broadcastResponse = await axios.post('https://api.blockchair.com/bitcoin/push/transaction', { data: txHex });
+      const broadcastResponse = await axios.post(PUSH_TX_URL, { data: txHex });
 
       console.log('Transaction Broadcasted:', broadcastResponse.data);
-      cryptoStore.setBitcoinWallet(this); // Update MobX store with the latest wallet state
+      bitcoinStore.setBitcoinWallet(this); // Update MobX store with the latest wallet state
       return broadcastResponse.data;
     } catch (error) {
       console.error('Error sending transaction:', error.message);
