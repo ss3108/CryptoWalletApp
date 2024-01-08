@@ -1,67 +1,86 @@
-import { ethers } from 'ethers';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { ethers } from 'ethers';
 import { makeAutoObservable } from 'mobx';
-import walletStore from './WalletStore';
-import { utils } from 'ethers';
 
-class PolygonWallet {
-  constructor(privateKey) {
-    this.privateKey = privateKey;
-    this.provider = new ethers.providers.JsonRpcProvider('https://rpc-mainnet.maticvigil.com/');
-    this.wallet = new ethers.Wallet(privateKey, this.provider);
-    this.address = this.wallet.address;
-    this.balance = ethers.BigNumber.from(0); // Set initial balance to zero
-    makeAutoObservable(this, { balance: true });
-  }
+const PolygonWallet = ({ privateKey }) => {
+  const [provider, setProvider] = useState(null);
+  const [wallet, setWallet] = useState(null);
+  const [address, setAddress] = useState(null);
+  const [balance, setBalance] = useState(ethers.BigNumber.from(0));
 
-  async getBalance() {
-    try {
-      this.balance = await this.provider.getBalance(this.address);
-      return this.balance.toString();
-    } catch (error) {
-      console.error('Error fetching balance:', error.message);
-      return null;
-    }
-  }
+  useEffect(() => {
+    const initializeWallet = () => {
+      const rpcProvider = new ethers.providers.JsonRpcProvider('https://rpc-mainnet.maticvigil.com/');
+      const walletInstance = new ethers.Wallet(privateKey, rpcProvider);
+      setProvider(rpcProvider);
+      setWallet(walletInstance);
+      setAddress(walletInstance.address);
+      makeAutoObservable(walletInstance, { balance: true });
+    };
 
-  async sendTransaction(receiverAddress, amount) {
+    initializeWallet();
+  }, [privateKey]);
+
+  const PolygonWalletComponent = ({ polygonPrivateKey, onPolygonSendTransaction }) => {
+    const [transactionResult, setTransactionResult] = useState('');
+  
+    const handlePolygonSendTransaction = async () => {
+      onPolygonSendTransaction(polygonPrivateKey)
+        .then(result => setTransactionResult(`Transaction Hash: ${result}`))
+        .catch(error => {
+          console.error('Error sending Polygon transaction:', error);
+          setTransactionResult('Transaction failed');
+        });
+    };  
+
+  const sendTransaction = async (receiverAddress, amount) => {
     try {
       const tx = {
         to: receiverAddress,
         value: ethers.utils.parseEther(amount.toString()),
       };
-  
-      // Estimate gas
-      const gasEstimate = await this.wallet.estimateGas(tx);
-      const gasLimit = ethers.utils.hexlify(gasEstimate.add(50000)); // Convert gasLimit to hex
-  
-      // Set gas price (you may adjust this based on network conditions)
-      const gasPrice = await this.provider.getGasPrice();
-  
-      // Add gas parameters to the transaction
+
+      const gasEstimate = await wallet.estimateGas(tx);
+      const gasLimit = ethers.utils.hexlify(gasEstimate.add(50000));
+
+      const gasPrice = await provider.getGasPrice();
+
       tx.gasLimit = gasLimit;
       tx.gasPrice = gasPrice;
-  
-      // Sign the transaction
-      const signedTx = await this.wallet.signTransaction(tx);
-  
-      // Send the transaction
+
+      const signedTx = await wallet.signTransaction(tx);
+
       const broadcastResponse = await axios.post('https://rpc-mainnet.maticvigil.com/', {
         jsonrpc: '2.0',
         method: 'eth_sendRawTransaction',
         params: [signedTx],
         id: 1,
       });
-  
+
       console.log('Transaction Broadcasted:', broadcastResponse.data.result);
-      cryptoStore.setPolygonWallet(this); // Update MobX store with the latest wallet state
+      cryptoStore.setPolygonWallet(this);
       return broadcastResponse.data.result;
     } catch (error) {
       console.error('Error sending transaction:', error.message);
       return null;
     }
-  }
-  
+  };
+
+  return (
+    <div>
+      <h2>Polygon Wallet</h2>
+      <input
+        type="text"
+        placeholder="Enter Polygon Private Key"
+        value={polygonPrivateKey}
+        onChange={(e) => setPolygonPrivateKey(e.target.value)}
+      />
+      <button onClick={handlePolygonSendTransaction}>Send Polygon Transaction</button>
+      {transactionResult && <p>{transactionResult}</p>}
+    </div>
+  );
+};
 }
 
 export default PolygonWallet;
